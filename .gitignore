@@ -545,3 +545,7 @@ $RECYCLE.BIN/
 
 # Environment secrets
 .env
+
+# Excecao: entidade de dominio Log
+!source/Domain/Entities/Log/
+!source/Domain/Entities/Log/**

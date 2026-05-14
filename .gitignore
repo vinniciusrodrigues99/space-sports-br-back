@@ -549,3 +549,8 @@ $RECYCLE.BIN/
 # Excecao: entidade de dominio Log
 !source/Domain/Entities/Log/
 !source/Domain/Entities/Log/**
+
+!source/Application/Features/Logs/
+!source/Application/Features/Logs/**
+!source/Infrastructure/Data/Configurations/Log/
+!source/Infrastructure/Data/Configurations/Log/**

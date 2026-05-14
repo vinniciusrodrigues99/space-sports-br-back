@@ -1,10 +1,6 @@
-using System;
-using System.Collections.Generic;
 using System.Data;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Npgsql;
 
 namespace FSP.Api.Infrastructure.Connector
 {
@@ -16,11 +12,9 @@ namespace FSP.Api.Infrastructure.Connector
         {
             var connectionString = _configuration.GetConnectionString("DefaultConnection");
             if (string.IsNullOrEmpty(connectionString))
-            {
                 throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
-            }
 
-            var connection = new SqlConnection(connectionString);
+            var connection = new NpgsqlConnection(connectionString);
             connection.Open();
             return connection;
         }

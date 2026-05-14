@@ -7,6 +7,7 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
+COPY ["Directory.Build.props", "."]
 COPY ["source/WebApi/FSP.WebApi.csproj", "source/WebApi/"]
 COPY ["source/Application/FSP.Application.csproj", "source/Application/"]
 COPY ["source/Domain/FSP.Domain.csproj", "source/Domain/"]

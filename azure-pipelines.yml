@@ -1,0 +1,120 @@
+resources:      
+  repositories: 
+    - repository: pipelines
+      name: pipelines/modalgr.pipelines
+      type: git 
+      ref: refs/heads/master
+      endpoint: modalgr-hub
+
+trigger:
+  branches:
+    include:
+      - dev
+      - qa
+      - hom
+      - main
+
+variables:
+- name: GenerateMigrations
+  value: false
+
+stages:
+  - stage: Build
+    displayName: Application Build
+    pool: 'agent'
+    jobs:
+      - template: dotnet/dotnet-webapi-build.yaml@pipelines
+        parameters:
+          dbContextName: 'ApplicationDbContext'
+          buildArtifactLocation: '$(Build.ArtifactStagingDirectory)'
+          generateMigrations: ${{ variables.GenerateMigrations }}
+          migrationsSqlFilePath: '$(Build.ArtifactStagingDirectory)/migrationScript.sql'
+
+  - stage: DeployDEV
+    displayName: Deploy Application DEV
+    condition: and(succeeded('Build'), eq(variables['Build.SourceBranch'], 'refs/heads/dev'))
+    pool: 'agent'
+    jobs:
+    - template: database/runscript-sqlserver.yaml@pipelines
+      parameters:
+        environment: 'dev'
+        sqlFilePath: $(Pipeline.Workspace)/drop
+        canExecute: ${{ variables.GenerateMigrations }}
+
+    - template: publish/publish-iis.yaml@pipelines
+      parameters:
+        environment: dev
+        SslThumbprint: b2f0fe452027139cd51ae5230ef29520426a7f92
+        BuildArticaficLocation: $(Pipeline.Workspace)/drop/WebApi.zip
+
+  - stage: DeployQA
+    displayName: Deploy Application QA
+    condition: and(succeeded('Build'), eq(variables['Build.SourceBranch'], 'refs/heads/qa'))
+    pool: 'agent'
+    jobs:
+      - deployment: ApproveDeploymentQA
+        displayName: Approve Deployment QA 
+        environment: '$(Build.Repository.Name)-qa'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: none       
+      - template: database/runscript-sqlserver.yaml@pipelines
+        parameters:
+          environment: qa
+          sqlFilePath: $(Pipeline.Workspace)/drop
+          canExecute: ${{ variables.GenerateMigrations }}
+      - template: publish/publish-iis.yaml@pipelines
+        parameters:
+          environment: qa
+          SslThumbprint: b2f0fe452027139cd51ae5230ef29520426a7f92
+          BuildArticaficLocation: $(Pipeline.Workspace)/drop/WebApi.zip
+
+  - stage: DeployHOM
+    displayName: Deploy Application Homolog
+    condition: and(succeeded('Build'), eq(variables['Build.SourceBranch'], 'refs/heads/hom'))
+    pool: 'agent'
+    jobs:
+      - deployment: ApproveDeploymentHOM
+        displayName: Approve Deployment Hom 
+        environment: '$(Build.Repository.Name)-hom'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: none       
+      - template: database/runscript-sqlserver.yaml@pipelines
+        parameters:
+          environment: hom
+          sqlFilePath: $(Pipeline.Workspace)/drop
+          canExecute: ${{ variables.GenerateMigrations }}
+      - template: publish/publish-iis.yaml@pipelines
+        parameters:
+          environment: hom
+          SslThumbprint: b2f0fe452027139cd51ae5230ef29520426a7f92
+          BuildArticaficLocation: $(Pipeline.Workspace)/drop/WebApi.zip
+
+  - stage: DeployPROD
+    displayName: Deploy Application Prod
+    condition: and(succeeded('Build'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    pool: 'agent'
+    jobs:
+      - deployment: ApproveDeploymentPROD
+        displayName: Approve Deployment Prod 
+        environment: '$(Build.Repository.Name)-main'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: none       
+      - template: database/runscript-sqlserver.yaml@pipelines
+        parameters:
+          environment: main
+          sqlFilePath: $(Pipeline.Workspace)/drop
+          canExecute: ${{ variables.GenerateMigrations }}
+      - template: publish/publish-iis.yaml@pipelines
+        parameters:
+          environment: main
+          SslThumbprint: b2f0fe452027139cd51ae5230ef29520426a7f92
+          BuildArticaficLocation: $(Pipeline.Workspace)/drop/WebApi.zip

@@ -1,0 +1,39 @@
+services:
+  api:
+    image: fsp.webapi
+    build:
+      context: .
+      dockerfile: source/WebApi/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=${POSTGRES_DB:-fsp};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD}
+      - JWTSettings__SecurityKey=${JWT_SECURITY_KEY}
+      - JWTSettings__ValidIssuer=${JWT_VALID_ISSUER:-FSP.API}
+      - JWTSettings__ValidAudience=${JWT_VALID_AUDIENCE}
+      - JWTSettings__ExpiryInHours=${JWT_EXPIRY_IN_HOURS:-48}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-fsp}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-fsp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

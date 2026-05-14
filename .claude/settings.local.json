@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/Vinnicius/source/repos/SpaceSports/space-sports-br-frontend/**)",
+      "Read(//c/Users/Vinnicius/source/repos/SpaceSports/space-sports-br-frontend/src/context/**)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}

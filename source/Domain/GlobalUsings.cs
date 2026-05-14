@@ -1,0 +1,1 @@
+﻿global using FSP.Api.Domain.Common;

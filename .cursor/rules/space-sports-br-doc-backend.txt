@@ -1,0 +1,218 @@
+Space Sports BR — Especificação de Backend (.NET)
+Documento para o agente de backend implementar a API que substituirá os mocks do frontend. Base URL esperada pelo front: VITE_API_BASE_URL (ex.: https://api.spacesportsbr.com). Autenticação via Bearer JWT (ASP.NET Identity) no header Authorization: Bearer <token>.
+
+1. Entidades
+1.1 User
+Espelha IdentityUser + campos de perfil. Resposta JSON esperada:
+
+
+{
+  "id": "string (guid)",
+  "name": "string",
+  "email": "string",
+  "avatarUrl": "string (url)",
+  "role": "admin | author | reader",
+  "canPublish": true,
+  "createdAt": "ISO-8601"
+}
+Regras:
+
+role é único por usuário (sugestão: claim/role do Identity).
+canPublish é flag adicional controlada pelo admin. Quando role = "reader", canPublish deve ser sempre false.
+admin implicitamente pode publicar (frontend já trata: canPublish = isAdmin || user.canPublish).
+avatarUrl: pode ser upload próprio ou URL externa. Para MVP, aceitar string URL.
+1.2 Post
+
+{
+  "id": "string (guid)",
+  "title": "string",
+  "slug": "string (único, gerado pelo backend)",
+  "excerpt": "string (max 280)",
+  "content": "string (markdown ou HTML simples)",
+  "coverUrl": "string (url da imagem de capa)",
+  "category": "futebol | nba | ufc | f1 | tenis",
+  "authorId": "string (FK User.id)",
+  "author": {
+    "id": "string",
+    "name": "string",
+    "avatarUrl": "string"
+  },
+  "publishedAt": "ISO-8601",
+  "readingMinutes": 4
+}
+Regras:
+
+slug: gerar a partir do title (kebab-case, sem acentos) + sufixo único para evitar colisão.
+readingMinutes: calcular no backend Math.max(2, ceil(words / 220)).
+author é projeção embutida (evitar N+1 no front). Pode ser join simples.
+category é enum fechado (5 valores acima). Validar no controller.
+1.3 AuthSession (resposta de login/register)
+
+{
+  "token": "string (JWT)",
+  "user": { /* User completo */ }
+}
+2. Endpoints
+Todos retornam application/json. Erros no formato:
+
+
+{ "status": 400, "message": "Mensagem legível" }
+2.1 Autenticação — /api/auth
+Método	Rota	Auth	Body	Resposta	Descrição
+POST	/api/auth/login	Pública	{ email, password }	200 AuthSession	Login Identity. 401 em credenciais inválidas.
+POST	/api/auth/register	Pública	{ name, email, password }	201 AuthSession	Cria usuário com role = "reader" e canPublish = false.
+GET	/api/auth/me	Bearer	—	200 User	Retorna usuário logado a partir do token.
+POST	/api/auth/logout	Bearer	—	204	Invalida token (se usar refresh/blacklist) ou apenas no client.
+2.2 Posts — /api/posts
+Método	Rota	Auth	Body / Query	Resposta	Regras
+GET	/api/posts?category=futebol	Pública	category? enum	200 Post[]	Ordenar por publishedAt DESC. Filtro opcional.
+GET	/api/posts/{slug}	Pública	—	200 Post / 404	Lookup por slug.
+POST	/api/posts	Bearer (admin OU author com canPublish=true)	{ title, excerpt, content, coverUrl, category }	201 Post	authorId e author vêm do token, não do body. Backend gera id, slug, publishedAt, readingMinutes.
+PUT	/api/posts/{id}	Bearer (dono OU admin)	mesmos campos do POST	200 Post	Opcional para v1, mas o tipo já existe.
+DELETE	/api/posts/{id}	Bearer (dono OU admin)	—	204	Forbidden (403) se não for dono/admin.
+2.3 Usuários (Admin) — /api/users
+Método	Rota	Auth	Body	Resposta	Descrição
+GET	/api/users	Bearer admin	—	200 User[]	Lista todos para o painel administrativo.
+PATCH	/api/users/{id}/publish-access	Bearer admin	{ canPublish: boolean }	200 User	Concede/revoga permissão de publicar.
+PATCH	/api/users/{id}/role	Bearer admin	{ role: "admin" | "author" | "reader" }	200 User	Ao definir reader, forçar canPublish = false.
+3. Autorização (matriz)
+Ação	reader	author (canPublish=false)	author (canPublish=true)	admin
+Ler posts	✅	✅	✅	✅
+Criar post	❌	❌	✅	✅
+Editar/excluir próprio post	—	❌	✅	✅
+Editar/excluir qualquer post	❌	❌	❌	✅
+Acessar /api/users/*	❌	❌	❌	✅
+Sugestão: usar [Authorize(Roles="Admin")] + policy CanPublish (claim ou check em canPublish).
+
+4. JWT — claims esperadas
+Mínimo necessário para o front decodificar/validar (mas o front lê User via /auth/me, então claims só precisam atender a API):
+
+sub = User.id
+email
+role = admin|author|reader
+canPublish = "true"|"false" (claim custom)
+exp, iat padrão
+5. CORS & Infra
+Liberar origem do frontend (preview Lovable + domínio final).
+Access-Control-Allow-Headers: Authorization, Content-Type.
+Métodos: GET, POST, PUT, PATCH, DELETE, OPTIONS.
+Banco gratuito sugerido: Supabase Postgres, Neon, ou Azure SQL Free (compatível com EF Core).
+6. Onde o front consome (referência rápida)
+src/services/authService.ts → /api/auth/*
+src/services/postService.ts → /api/posts/*
+src/services/userService.ts → /api/users/*
+src/services/http.ts → wrapper apiFetch já pronto, basta substituir os corpos mockados por apiFetch(...).
+src/services/types.ts → contrato TypeScript que deve bater 1:1 com o JSON da API.
+Pode passar este documento ao agente de backend — qualquer divergência de nome de campo (ex.: coverUrl vs cover_url) quebra o front, então mantenha camelCase na serialização (builder.Services.AddControllers().AddJsonOptions(...) com JsonNamingPolicy.CamelCase).
+
+Space Sports BR — Especificação de Backend (.NET)
+Documento para o agente de backend implementar a API que substituirá os mocks do frontend. Base URL esperada pelo front: VITE_API_BASE_URL (ex.: https://api.spacesportsbr.com). Autenticação via Bearer JWT (ASP.NET Identity) no header Authorization: Bearer <token>.
+
+1. Entidades
+1.1 User
+Espelha IdentityUser + campos de perfil. Resposta JSON esperada:
+
+
+{
+  "id": "string (guid)",
+  "name": "string",
+  "email": "string",
+  "avatarUrl": "string (url)",
+  "role": "admin | author | reader",
+  "canPublish": true,
+  "createdAt": "ISO-8601"
+}
+Regras:
+
+role é único por usuário (sugestão: claim/role do Identity).
+canPublish é flag adicional controlada pelo admin. Quando role = "reader", canPublish deve ser sempre false.
+admin implicitamente pode publicar (frontend já trata: canPublish = isAdmin || user.canPublish).
+avatarUrl: pode ser upload próprio ou URL externa. Para MVP, aceitar string URL.
+1.2 Post
+
+{
+  "id": "string (guid)",
+  "title": "string",
+  "slug": "string (único, gerado pelo backend)",
+  "excerpt": "string (max 280)",
+  "content": "string (markdown ou HTML simples)",
+  "coverUrl": "string (url da imagem de capa)",
+  "category": "futebol | nba | ufc | f1 | tenis",
+  "authorId": "string (FK User.id)",
+  "author": {
+    "id": "string",
+    "name": "string",
+    "avatarUrl": "string"
+  },
+  "publishedAt": "ISO-8601",
+  "readingMinutes": 4
+}
+Regras:
+
+slug: gerar a partir do title (kebab-case, sem acentos) + sufixo único para evitar colisão.
+readingMinutes: calcular no backend Math.max(2, ceil(words / 220)).
+author é projeção embutida (evitar N+1 no front). Pode ser join simples.
+category é enum fechado (5 valores acima). Validar no controller.
+1.3 AuthSession (resposta de login/register)
+
+{
+  "token": "string (JWT)",
+  "user": { /* User completo */ }
+}
+2. Endpoints
+Todos retornam application/json. Erros no formato:
+
+
+{ "status": 400, "message": "Mensagem legível" }
+2.1 Autenticação — /api/auth
+Método	Rota	Auth	Body	Resposta	Descrição
+POST	/api/auth/login	Pública	{ email, password }	200 AuthSession	Login Identity. 401 em credenciais inválidas.
+POST	/api/auth/register	Pública	{ name, email, password }	201 AuthSession	Cria usuário com role = "reader" e canPublish = false.
+GET	/api/auth/me	Bearer	—	200 User	Retorna usuário logado a partir do token.
+POST	/api/auth/logout	Bearer	—	204	Invalida token (se usar refresh/blacklist) ou apenas no client.
+2.2 Posts — /api/posts
+Método	Rota	Auth	Body / Query	Resposta	Regras
+GET	/api/posts?category=futebol	Pública	category? enum	200 Post[]	Ordenar por publishedAt DESC. Filtro opcional.
+GET	/api/posts/{slug}	Pública	—	200 Post / 404	Lookup por slug.
+POST	/api/posts	Bearer (admin OU author com canPublish=true)	{ title, excerpt, content, coverUrl, category }	201 Post	authorId e author vêm do token, não do body. Backend gera id, slug, publishedAt, readingMinutes.
+PUT	/api/posts/{id}	Bearer (dono OU admin)	mesmos campos do POST	200 Post	Opcional para v1, mas o tipo já existe.
+DELETE	/api/posts/{id}	Bearer (dono OU admin)	—	204	Forbidden (403) se não for dono/admin.
+2.3 Usuários (Admin) — /api/users
+Método	Rota	Auth	Body	Resposta	Descrição
+GET	/api/users	Bearer admin	—	200 User[]	Lista todos para o painel administrativo.
+PATCH	/api/users/{id}/publish-access	Bearer admin	{ canPublish: boolean }	200 User	Concede/revoga permissão de publicar.
+PATCH	/api/users/{id}/role	Bearer admin	{ role: "admin" | "author" | "reader" }	200 User	Ao definir reader, forçar canPublish = false.
+3. Autorização (matriz)
+Ação	reader	author (canPublish=false)	author (canPublish=true)	admin
+Ler posts	✅	✅	✅	✅
+Criar post	❌	❌	✅	✅
+Editar/excluir próprio post	—	❌	✅	✅
+Editar/excluir qualquer post	❌	❌	❌	✅
+Acessar /api/users/*	❌	❌	❌	✅
+Sugestão: usar [Authorize(Roles="Admin")] + policy CanPublish (claim ou check em canPublish).
+
+4. JWT — claims esperadas
+Mínimo necessário para o front decodificar/validar (mas o front lê User via /auth/me, então claims só precisam atender a API):
+
+sub = User.id
+email
+role = admin|author|reader
+canPublish = "true"|"false" (claim custom)
+exp, iat padrão
+5. CORS & Infra
+Liberar origem do frontend (preview Lovable + domínio final).
+Access-Control-Allow-Headers: Authorization, Content-Type.
+Métodos: GET, POST, PUT, PATCH, DELETE, OPTIONS.
+Banco gratuito sugerido: Supabase Postgres, Neon, ou Azure SQL Free (compatível com EF Core).
+6. Onde o front consome (referência rápida)
+src/services/authService.ts → /api/auth/*
+src/services/postService.ts → /api/posts/*
+src/services/userService.ts → /api/users/*
+src/services/http.ts → wrapper apiFetch já pronto, basta substituir os corpos mockados por apiFetch(...).
+src/services/types.ts → contrato TypeScript que deve bater 1:1 com o JSON da API.
+Pode passar este documento ao agente de backend — qualquer divergência de nome de campo (ex.: coverUrl vs cover_url) quebra o front, então mantenha camelCase na serialização (builder.Services.AddControllers().AddJsonOptions(...) com JsonNamingPolicy.CamelCase).
+
+
+
+
+

@@ -1,0 +1,917 @@
+---
+name: "ABA API - .NET 8 Clean Architecture Rules"
+description: "Development and structure rules for ABA API project using .NET 8 Clean Architecture and CQRS pattern"
+alwaysApply: true
+---
+
+# ABA API - .NET 8 Clean Architecture Cursor Rules
+
+## 🧭 Project Overview
+This is a **.NET 8 Clean Architecture API** project following the **CQRS pattern** with:
+- MediatR
+- AutoMapper
+- FluentValidation
+- Entity Framework Core with Identity
+
+---
+
+## 🧱 Architecture Layers
+- **WebApi** → Controllers, endpoints, middleware
+- **Application** → CQRS commands/queries, services, behaviors, DTOs
+- **Domain** → Entities, value objects, domain services, notifications
+- **Infrastructure** → Data access, repositories, EF Core DbContext, external integrations
+
+---
+
+## ✍️ Coding Standards
+
+### Naming Conventions
+- **Portuguese** → Business domain names (classes, properties, methods)  
+- **English** → Technical names (interfaces, framework classes)
+- **PascalCase** → Classes, methods, properties  
+- **camelCase** → Local variables and parameters  
+- Prefix interfaces with **I** (e.g., `IRepositoryBase`, `IUserService`)
+
+### File Organization
+```
+Features/{Feature}/Commands/{CommandName}/
+Features/{Feature}/Queries/{QueryName}/
+Features/{Feature}/DTOs/
+```
+Each command/query folder must contain:
+```
+Commands/{CommandName}/
+  {CommandName}Command.cs
+  {CommandName}CommandHandler.cs
+  {CommandName}CommandResponse.cs
+
+Queries/{QueryName}/
+  {QueryName}Query.cs
+  {QueryName}QueryHandler.cs
+  {QueryName}QueryResponse.cs
+
+DTOs/
+  {CommandName}RequestDTO.cs  (for Commands)
+  {CommandName}ResponseDTO.cs (for Commands)
+  {Entity}DTO.cs              (for Queries)
+```
+
+### DTO Naming Conventions
+- **Request DTOs** → `{CommandName}RequestDTO` (e.g., `CreateEmpresaRequestDTO`)
+- **Response DTOs** → `{CommandName}ResponseDTO` (e.g., `CreateEmpresaResponseDTO`)
+- **Entity DTOs** → `{Entity}DTO` (e.g., `EmpresaDTO`)
+- **Command Response** → `{CommandName}CommandResponse` wraps the response DTO
+- **Query Response** → `{QueryName}QueryResponse` wraps the entity DTO
+
+### Command/Query Structure
+- **Commands** → `record {CommandName}Command(RequestDTO) : IRequest<ResponseBase<CommandResponse>>`
+- **Queries** → `record {QueryName}Query(parameters) : IRequest<ResponseBase<QueryResponse>>`
+- **Command Response** → Contains business-specific response DTO
+- **Query Response** → Contains entity DTO
+
+Example:
+```csharp
+// Command
+public record CreateEmpresaCommand(CreateEmpresaRequestDTO RequestDTO) 
+    : IRequest<ResponseBase<CreateEmpresaCommandResponse>>;
+
+// Command Response
+public record CreateEmpresaCommandResponse
+{
+    public required CreateEmpresaResponseDTO Empresa { get; set; }
+}
+
+// Query
+public record GetEmpresaByIdQuery(Guid Id) 
+    : IRequest<ResponseBase<GetEmpresaByIdQueryResponse>>;
+
+// Query Response
+public record GetEmpresaByIdQueryResponse
+{
+    public required EmpresaDTO Empresa { get; set; }
+}
+```
+
+---
+
+## ⚙️ CQRS Pattern Rules
+- Commands → `record {CommandName}Command(RequestDTO) : IRequest<ResponseBase<TResponse>>`
+- Queries → `record {QueryName}Query(parameters) : IRequest<ResponseBase<TResponse>>`
+- Handlers → Implement `IRequestHandler<TRequest, ResponseBase<TResponse>>`
+- **Handlers are responsible for returning `ResponseBase.Success()` or `ResponseBase.Failure()`**
+- **Controllers only pass through the response from handlers without wrapping**
+- Use FluentValidation for validation
+- Use MediatR behaviors for cross-cutting concerns
+- **Commands receive a Request DTO as parameter, not individual properties**
+- **Command/Query Response objects wrap the actual DTO**
+
+---
+
+## 🧩 Controllers
+- Inherit from `BaseController`
+- Inject `IMediator` and notification handlers
+- Use `[ProducesResponseType]` for Swagger docs
+- Return via `Response()` method
+- **Controllers should NOT wrap responses in `ResponseBase.Success()` or `ResponseBase.Failure()`**
+- **Handlers are responsible for returning the appropriate `ResponseBase<T>`**
+- **For file uploads, use `[Consumes("multipart/form-data")]` and `[FromForm]`**
+- Example:
+```csharp
+[HttpPost]
+[ProducesResponseType(statusCode: 200, type: typeof(ResponseBase<CreateUserCommandResponse>))]
+public async Task<IActionResult> CreateUser([FromBody] CreateUserRequestDTO request)
+    => Response(await _mediatorHandler.Send(new CreateUserCommand(request)));
+
+[HttpPost]
+[Consumes("multipart/form-data")]
+[ProducesResponseType(statusCode: 200, type: typeof(ResponseBase<CreateEmpresaCommandResponse>))]
+public async Task<IActionResult> CreateEmpresa([FromForm] CreateEmpresaRequestDTO request)
+    => Response(await _mediatorHandler.Send(new CreateEmpresaCommand(request)));
+
+[HttpGet("{id}")]
+[ProducesResponseType(statusCode: 200, type: typeof(ResponseBase<GetEmpresaByIdQueryResponse>))]
+public async Task<IActionResult> GetEmpresaById(Guid id)
+    => Response(await _mediatorHandler.Send(new GetEmpresaByIdQuery(id)));
+```
+
+---
+
+## 🧬 Domain Entities
+- Inherit from `BaseAuditableEntity`
+- Use `required` for mandatory properties
+- Use nullable reference types (`string?`)
+- **DO NOT use `IsActive` - use `IsDeleted` for soft delete**
+- Include audit fields (inherited from `BaseAuditableEntity`):
+  - `Id` (Guid)
+  - `CreatedBy`, `CreatedAt`
+  - `LastModifiedBy`, `LastModifiedAt`
+  - `IsDeleted` (for soft delete, default: false)
+- Example:
+```csharp
+public class User : BaseAuditableEntity
+{
+    public required string NomeCompleto { get; set; }
+    public string? Email { get; set; }
+}
+```
+
+### Enums
+- Use **Portuguese** names for enum values
+- Use `[Display(Name = "...")]` for friendly display names
+- Use `[Flags]` attribute when multiple values can be selected simultaneously
+- Example:
+```csharp
+using System.ComponentModel.DataAnnotations;
+
+[Flags]
+public enum CaracteristicaCarga
+{
+    [Display(Name = "Nenhuma")]
+    Nenhuma = 0,
+
+    [Display(Name = "Empilhável")]
+    Empilhavel = 1,
+
+    [Display(Name = "Carga IMO")]
+    CargaIMO = 2
+}
+```
+
+### Enum Extensions
+- Create extension methods in `Domain/Helpers/EnumExtensions.cs`
+- Example:
+```csharp
+public static class EnumExtensions
+{
+    public static string GetDisplayName(this Enum value)
+    {
+        return value.GetType()
+            .GetMember(value.ToString())[0]
+            .GetCustomAttribute<DisplayAttribute>()?
+            .GetName() ?? value.ToString();
+    }
+}
+```
+
+---
+
+## ✅ Validation
+- Use FluentValidation
+- Place validators in same folder as the command/query
+- Use `ValidationBehaviour` for automatic validation
+
+---
+
+## 🧩 Dependency Injection
+- Register services via extension methods:
+  - `AddApplicationServices()`
+  - `AddInfrastructureServices()`
+  - `AddWebServices()`
+- Follow existing dependency registration pattern
+
+---
+
+## 🌐 Global Usings
+Add common imports:
+```csharp
+global using Ardalis.GuardClauses;
+global using AutoMapper;
+global using FluentValidation;
+global using MediatR;
+global using Microsoft.EntityFrameworkCore;
+```
+
+---
+
+## 🚨 Error Handling
+- Use `DomainNotification` for business rule violations  
+- Use `DomainSuccesNotification` for success feedback  
+- Use exceptions:
+  - `ValidationException`
+  - `ForbiddenAccessException`
+
+---
+
+## 🗃️ Database
+- Entity Framework Core (Code First)
+- `ApplicationDbContext` for main entities
+- `IdentityApplicationDbContext` for Identity
+- Implement `IUnitOfWork` + `IRepositoryBase<T>`
+
+---
+
+## 🔒 Security
+- ASP.NET Core Identity + JWT authentication
+- Refresh token mechanism
+- Use `[Authorize]` for protected endpoints
+
+---
+
+## 📘 API Documentation
+- Use Swagger / OpenAPI
+- Add `[ProducesResponseType]` for all actions
+- Document request/response DTOs clearly
+
+---
+
+## 🧠 Code Quality
+- Enable nullable references
+- Treat warnings as errors
+- Use implicit usings
+- Follow SOLID principles
+- Log via `LoggingBehaviour` or `ILogService`
+- **Always use constructor primary syntax for dependency injection**
+- **Use `record` for Commands, Queries, and Response objects**
+- **Use `class` for DTOs that need to be mutable**
+
+---
+
+## 🧪 Testing
+- Unit tests for handlers
+- Integration tests for controllers
+- Use in-memory DB for tests
+- Mock all external dependencies
+
+---
+
+## ⚡ Performance
+- Use `PerformanceBehaviour` for timing
+- Apply caching where applicable
+- Always use async/await
+- Optimize queries and projections
+
+---
+
+## 🧱 Common Patterns
+
+### AutoMapper Configuration
+- Use `IMapFrom<TEntity>` interface for automatic mapping registration
+- Create `AutoMappingProfile` that scans assembly for types implementing `IMapFrom<T>`
+- DTOs automatically map from entities when implementing `IMapFrom<Entity>`
+- Override `Mapping()` method for custom mappings
+
+Example:
+```csharp
+// Interface
+public interface IMapFrom<T>
+{
+    void Mapping(Profile profile) => profile.CreateMap(typeof(T), GetType());
+}
+
+// DTO with automatic mapping
+public class EmpresaDTO : IMapFrom<Empresa>
+{
+    public Guid Id { get; set; }
+    public required string NomeEmpresa { get; set; }
+    // ... other properties
+}
+
+// DTO with custom mapping
+public class CustomDTO : IMapFrom<Entity>
+{
+    public void Mapping(Profile profile)
+    {
+        profile.CreateMap<Entity, CustomDTO>()
+            .ForMember(d => d.CustomField, opt => opt.MapFrom(s => s.SourceField));
+    }
+}
+```
+
+### File Upload Pattern
+- Use `IFileStorageService` for file operations
+- Request DTOs use `IFormFile?` for optional file uploads
+- Validate file extensions and size in handler
+- Save files with GUID names to prevent conflicts
+- Store only filename in database, not full path
+- Return Base64 data URI for image display (`data:image/jpeg;base64,...`)
+
+Example:
+```csharp
+// Request DTO
+public class CreateEmpresaRequestDTO
+{
+    public IFormFile? LogoEmpresa { get; set; }
+    // ... other properties
+}
+
+// Handler
+if (dto.LogoEmpresa != null)
+{
+    var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+    var maxFileSizeMB = 5;
+    
+    var extension = Path.GetExtension(dto.LogoEmpresa.FileName).ToLower();
+    if (!allowedExtensions.Contains(extension))
+    {
+        await _mediator.Publish(new DomainNotification("Validation", "Formato inválido"), cancellationToken);
+        return ResponseBase<T>.Failure();
+    }
+    
+    logoFileName = await _fileStorageService.SaveFileAsync(dto.LogoEmpresa, "empresas", cancellationToken);
+}
+
+// Query Handler - Return Base64
+if (!string.IsNullOrEmpty(empresa.LogoEmpresa))
+{
+    empresaDto.LogoEmpresa = await _fileStorageService.GetFileAsBase64Async(empresa.LogoEmpresa, "empresas", cancellationToken);
+}
+```
+
+### Repository Pattern
+- Repositories inherit from `IRepositoryBase<TEntity>`
+- Add custom methods for specific queries
+- Use `Task<TEntity?>` for nullable returns
+- Always include `CancellationToken cancellationToken = default`
+- For list queries with filters, return `Task<object>` to avoid layer violation (cast to `PaginatedList<T>` in handler)
+
+Example:
+```csharp
+public interface IEmpresaRepository : IRepositoryBase<Empresa>
+{
+    Task<Empresa?> GetByCodigoIntegracaoAsync(string codigoIntegracao, CancellationToken cancellationToken = default);
+    Task<Empresa?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<object> BuscarEmpresasPorFiltrosAsync(string? pesquisaGeral, List<Guid>? ids, bool? ativo, List<SortBy>? sortBy, int page, int pageSize, CancellationToken cancellationToken = default);
+}
+```
+
+### Logging Pattern
+- Use `ILogService` for audit logging
+- Log all persistence operations (create, update, delete)
+- Include structured details in JSON format
+- Use appropriate log levels (Information, Warning, Error)
+
+Example:
+```csharp
+await _logService.Information(
+    descricao: "Nova empresa cadastrada",
+    detalhes: System.Text.Json.JsonSerializer.Serialize(new
+    {
+        EmpresaId = novaEmpresa.Id,
+        novaEmpresa.NomeEmpresa,
+        DataCriacao = novaEmpresa.CriadoEm,
+        Acao = "CadastrarEmpresa",
+        Modulo = "Empresas"
+    })
+);
+```
+
+### Transaction Pattern
+- Use `IUnitOfWork` for transaction management
+- Call `BeginTransactionAsync()` before operations
+- Call `CommitAsync()` after success
+- Call `RollbackAsync()` in catch block
+- Check `HasTransactionOpen()` before rollback
+
+Example:
+```csharp
+try
+{
+    await _unitOfWork.BeginTransactionAsync(cancellationToken);
+    
+    // ... business logic
+    
+    await _unitOfWork.CommitAsync(cancellationToken);
+    return ResponseBase<T>.Success(response);
+}
+catch (Exception ex)
+{
+    if (_unitOfWork.HasTransactionOpen())
+    {
+        await _unitOfWork.RollbackAsync(cancellationToken);
+    }
+    return ResponseBase<T>.Failure();
+}
+```
+
+### Pagination and Filtering Pattern
+- Use `PaginatedList<T>` for paginated responses
+- Accept filters as query parameters with nullable types
+- Use `SortBy` class for dynamic sorting (JSON string from frontend)
+- Use `JsonUtils.DeserializeSortBy()` to convert JSON string to `List<SortBy>`
+- Implement dynamic SQL in repository with Dapper for complex filtering
+
+**SortBy DTO:**
+```csharp
+public class SortBy
+{
+    public required string Campo { get; set; }
+    public string? Valor { get; set; } // "ASC" or "DESC"
+}
+```
+
+**Query with Filters:**
+```csharp
+public record GetEmpresasByFiltersQuery(
+    string? PesquisaGeral,
+    List<Guid>? IdsEmpresas,
+    bool? Ativo,
+    string? SortBy,  // JSON string: [{"campo":"nomeEmpresa","valor":"ASC"}]
+    int Page = 1,
+    int PageSize = 10
+) : IRequest<ResponseBase<GetEmpresasByFiltersQueryResponse>>;
+```
+
+**Controller Endpoint:**
+```csharp
+[HttpGet]
+[ProducesResponseType(statusCode: 200, type: typeof(ResponseBase<GetEmpresasByFiltersQueryResponse>))]
+public async Task<IActionResult> GetEmpresasByFilters(
+    [FromQuery] string? pesquisaGeral,
+    [FromQuery] List<Guid>? idsEmpresas,
+    [FromQuery] bool? ativo,
+    [FromQuery] string? sortBy,  // Frontend sends: [{"campo":"nomeEmpresa","valor":"ASC"}]
+    [FromQuery] int page = 1,
+    [FromQuery] int pageSize = 10)
+    => Response(await _mediatorHandler.Send(new GetEmpresasByFiltersQuery(
+        pesquisaGeral, idsEmpresas, ativo, sortBy, page, pageSize)));
+```
+
+**Handler with Deserialization:**
+```csharp
+public async Task<ResponseBase<GetEmpresasByFiltersQueryResponse>> Handle(
+    GetEmpresasByFiltersQuery request,
+    CancellationToken cancellationToken)
+{
+    // Deserialize JSON string to List<SortBy>
+    List<SortBy> sortByList = JsonUtils.DeserializeSortBy(request.SortBy);
+    
+    var result = await _empresaRepository.BuscarEmpresasPorFiltrosAsync(
+        request.PesquisaGeral,
+        request.IdsEmpresas,
+        request.Ativo,
+        sortByList,
+        request.Page,
+        request.PageSize,
+        cancellationToken);
+    
+    var paginatedList = (PaginatedList<EmpresaListDTO>)result;
+    
+    return ResponseBase<GetEmpresasByFiltersQueryResponse>.Success(
+        new GetEmpresasByFiltersQueryResponse { Empresas = paginatedList });
+}
+```
+
+**Repository with Dynamic SQL:**
+```csharp
+public async Task<object> BuscarEmpresasPorFiltrosAsync(
+    string? pesquisaGeral,
+    List<Guid>? ids,
+    bool? ativo,
+    List<SortBy>? sortBy,
+    int page,
+    int pageSize,
+    CancellationToken cancellationToken = default)
+{
+    var connection = CreateConnection();
+    var sql = "SELECT ID, NOME, STATUS FROM T_EMPRESA WHERE 1=1";
+    var parameters = new DynamicParameters();
+    
+    // Dynamic filters
+    if (!string.IsNullOrEmpty(pesquisaGeral))
+    {
+        sql += " AND (NOME LIKE @PesquisaGeral)";
+        parameters.Add("PesquisaGeral", $"%{pesquisaGeral}%");
+    }
+    
+    if (ids != null && ids.Any())
+    {
+        sql += " AND ID IN @Ids";
+        parameters.Add("Ids", ids);
+    }
+    
+    // Dynamic sorting
+    var camposPermitidos = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        {"nome", "NOME"},
+        {"status", "STATUS"}
+    };
+    
+    if (sortBy != null && sortBy.Count > 0)
+    {
+        var validSorts = sortBy
+            .Where(s => camposPermitidos.ContainsKey(s.Campo))
+            .Select(s => $"{camposPermitidos[s.Campo]} {(s.Valor?.ToUpper() == "DESC" ? "DESC" : "ASC")}")
+            .ToList();
+        
+        if (validSorts.Count > 0)
+            sql += " ORDER BY " + string.Join(", ", validSorts);
+        else
+            sql += " ORDER BY NOME ASC";
+    }
+    else
+    {
+        sql += " ORDER BY NOME ASC";
+    }
+    
+    // Count total
+    var filtrosSql = sql[sql.IndexOf("WHERE")..];
+    var orderByIndex = filtrosSql.IndexOf("ORDER BY", StringComparison.OrdinalIgnoreCase);
+    if (orderByIndex >= 0)
+        filtrosSql = filtrosSql[..orderByIndex];
+    
+    var countSql = $"SELECT COUNT(*) FROM T_EMPRESA {filtrosSql}";
+    var totalCount = await connection.ExecuteScalarAsync<int>(countSql, parameters);
+    
+    // Pagination
+    sql += " OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
+    parameters.Add("Offset", (page - 1) * pageSize);
+    parameters.Add("PageSize", pageSize);
+    
+    var items = await connection.QueryAsync<EmpresaListDTO>(sql, parameters);
+    return new PaginatedList<EmpresaListDTO>(items.ToList(), totalCount, page, pageSize);
+}
+```
+
+**Frontend Usage (Angular):**
+```typescript
+const sortby = [{ campo: 'nomeEmpresa', valor: 'ASC' }];
+const params = new URLSearchParams({
+  page: '1',
+  pageSize: '10',
+  pesquisaGeral: 'ABA',
+  ativo: 'true',
+  sortBy: JSON.stringify(sortby)  // Sends as JSON string
+});
+
+// URL: /api/empresa?page=1&pageSize=10&pesquisaGeral=ABA&ativo=true&sortBy=[{"campo":"nomeEmpresa","valor":"ASC"}]
+```
+
+**Swagger Testing:**
+In Swagger UI, for the `sortBy` parameter, input:
+```json
+[{"campo":"nomeEmpresa","valor":"ASC"}]
+```
+Or with multiple sorts:
+```json
+[{"campo":"nomeEmpresa","valor":"DESC"},{"campo":"codigoIntegracao","valor":"ASC"}]
+```
+
+### Command Handler Example
+```csharp
+public class CreateEmpresaCommandHandler(
+    IMediator mediator, 
+    IFileStorageService fileStorageService, 
+    IEmpresaRepository empresaRepository, 
+    ICurrentUserService currentUserService, 
+    ILogService logService, 
+    IUnitOfWork unitOfWork) 
+    : IRequestHandler<CreateEmpresaCommand, ResponseBase<CreateEmpresaCommandResponse>>
+{
+    public async Task<ResponseBase<CreateEmpresaCommandResponse>> Handle(
+        CreateEmpresaCommand request, 
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var dto = request.RequestDTO;
+            
+            // Business validation
+            var existingCompany = await _empresaRepository.GetByCodigoIntegracaoAsync(
+                dto.CodigoIntegracao, cancellationToken);
+            
+            if (existingCompany != null)
+            {
+                await _mediator.Publish(
+                    new DomainNotification("Validation", "Código já existe."), 
+                    cancellationToken);
+                return ResponseBase<CreateEmpresaCommandResponse>.Failure();
+            }
+            
+            // File upload
+            string? logoFileName = null;
+            if (dto.LogoEmpresa != null)
+            {
+                // Validate extension and size
+                logoFileName = await _fileStorageService.SaveFileAsync(
+                    dto.LogoEmpresa, "empresas", cancellationToken);
+            }
+            
+            // Transaction
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+            
+            var empresa = new Empresa
+            {
+                NomeEmpresa = dto.NomeEmpresa,
+                LogoEmpresa = logoFileName
+            };
+            
+            await _empresaRepository.AddAsync(empresa, cancellationToken);
+            await _unitOfWork.CommitAsync(cancellationToken);
+            
+            // Logging
+            await _logService.Information(
+                descricao: "Empresa cadastrada",
+                detalhes: JsonSerializer.Serialize(new { empresa.Id, empresa.NomeEmpresa })
+            );
+            
+            // Success notification
+            await _mediator.Publish(
+                new DomainSuccesNotification("Success", "Empresa cadastrada com sucesso."), 
+                cancellationToken);
+            
+            return ResponseBase<CreateEmpresaCommandResponse>.Success(
+                new CreateEmpresaCommandResponse
+                {
+                    Empresa = new CreateEmpresaResponseDTO
+                    {
+                        IdEmpresa = empresa.Id,
+                        NomeEmpresa = empresa.NomeEmpresa
+                    }
+                });
+        }
+        catch (Exception ex)
+        {
+            if (_unitOfWork.HasTransactionOpen())
+                await _unitOfWork.RollbackAsync(cancellationToken);
+                
+            await _logService.Error(
+                descricao: "Erro ao cadastrar empresa",
+                detalhes: ex.Message,
+                exception: ex);
+                
+            await _mediator.Publish(
+                new DomainNotification("Error", $"Erro: {ex.Message}"), 
+                cancellationToken);
+                
+            return ResponseBase<CreateEmpresaCommandResponse>.Failure();
+        }
+    }
+}
+```
+
+### Query Handler Example
+```csharp
+public class GetEmpresaByIdQueryHandler(
+    IMediator mediator, 
+    IEmpresaRepository empresaRepository, 
+    IMapper mapper, 
+    IFileStorageService fileStorageService) 
+    : IRequestHandler<GetEmpresaByIdQuery, ResponseBase<GetEmpresaByIdQueryResponse>>
+{
+    public async Task<ResponseBase<GetEmpresaByIdQueryResponse>> Handle(
+        GetEmpresaByIdQuery request, 
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var empresa = await _empresaRepository.GetByIdAsync(request.Id);
+            
+            if (empresa == null)
+            {
+                await _mediator.Publish(
+                    new DomainNotification("NotFound", "Empresa não encontrada."), 
+                    cancellationToken);
+                return ResponseBase<GetEmpresaByIdQueryResponse>.Failure();
+            }
+            
+            var empresaDto = _mapper.Map<EmpresaDTO>(empresa);
+            
+            // Return file as Base64 data URI
+            if (!string.IsNullOrEmpty(empresa.LogoEmpresa))
+            {
+                empresaDto.LogoEmpresa = await _fileStorageService.GetFileAsBase64Async(
+                    empresa.LogoEmpresa, "empresas", cancellationToken);
+            }
+            
+            await _mediator.Publish(
+                new DomainSuccesNotification("Success", "Empresa obtida com sucesso."), 
+                cancellationToken);
+            
+            return ResponseBase<GetEmpresaByIdQueryResponse>.Success(
+                new GetEmpresaByIdQueryResponse
+                {
+                    Empresa = empresaDto
+                });
+        }
+        catch (Exception ex)
+        {
+            await _mediator.Publish(
+                new DomainNotification("Error", $"Erro: {ex.Message}"), 
+                cancellationToken);
+            return ResponseBase<GetEmpresaByIdQueryResponse>.Failure();
+        }
+    }
+}
+```
+
+---
+
+## 🗂️ File Templates
+
+### New Command Structure
+```
+Features/{Feature}/
+├── Commands/
+│   └── {CommandName}/
+│       ├── {CommandName}Command.cs
+│       ├── {CommandName}CommandHandler.cs
+│       └── {CommandName}CommandResponse.cs
+├── DTOs/
+│   ├── {CommandName}RequestDTO.cs
+│   └── {CommandName}ResponseDTO.cs
+```
+
+### New Query Structure
+```
+Features/{Feature}/
+├── Queries/
+│   └── {QueryName}/
+│       ├── {QueryName}Query.cs
+│       ├── {QueryName}QueryHandler.cs
+│       └── {QueryName}QueryResponse.cs
+├── DTOs/
+│   └── {Entity}DTO.cs
+```
+
+---
+
+## 🗃️ Database
+
+### Entity Framework Core Configuration
+- Entity Framework Core (Code First)
+- `ApplicationDbContext` for main entities
+- `IdentityApplicationDbContext` for Identity
+- Implement `IUnitOfWork` + `IRepositoryBase<T>`
+
+### Database Naming Conventions
+**Tables:**
+- Prefix with `T_` (e.g., `T_PROGRAMACAO`, `T_USUARIO`, `T_NAVIO`)
+- Use **UPPERCASE** and **Portuguese** names
+
+**Columns:**
+- Use **UPPERCASE** and **Portuguese** names
+- Primary Keys: `ID_{TABLE_NAME}` (e.g., `ID_PROGRAMACAO`)
+- Foreign Keys: `{REFERENCED_TABLE}_ID` (e.g., `NAVIO_ID`, `ARMADOR_ID`)
+- Sequence Numbers: `NU_SEQUENCIAL`
+- Text Fields: `TX_{FIELD_NAME}` (e.g., `TX_OBSERVACAO`, `TX_STATUS_PROGRAMACAO`)
+- Date Fields: `DT_{FIELD_NAME}` (e.g., `DT_CHEGADA`, `DT_SAIDA`)
+- Time Fields: `HR_{FIELD_NAME}` (e.g., `HR_INICIO_OPERACAO`, `HR_FIM_OPERACAO`)
+- Quantity Fields: `QTD_{FIELD_NAME}` (e.g., `QTD_MALAS`, `QTD_GIROS`)
+- Flag Fields: `FL_{FIELD_NAME}` (e.g., `FL_ATIVO`)
+- User Fields: `USUARIO_{FIELD_NAME}_ID` (e.g., `USUARIO_PROGRAMACAO_ID`)
+
+**Entity Configuration Example:**
+```csharp
+public class ProgramacaoConfiguration : IEntityTypeConfiguration<Programacao>
+{
+    public void Configure(EntityTypeBuilder<Programacao> builder)
+    {
+        builder.ToTable("T_PROGRAMACAO");
+        
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id)
+            .HasColumnName("ID_PROGRAMACAO")
+            .IsRequired();
+            
+        builder.Property(x => x.NumeroSequencial)
+            .HasColumnName("NU_SEQUENCIAL")
+            .HasMaxLength(10);
+            
+        builder.Property(x => x.DataChegada)
+            .HasColumnName("DT_CHEGADA")
+            .HasColumnType("datetime2");
+            
+        builder.Property(x => x.StatusProgramacao)
+            .HasColumnName("TX_STATUS_PROGRAMACAO")
+            .HasMaxLength(50);
+            
+        builder.Property(x => x.QuantidadeMalas)
+            .HasColumnName("QTD_MALAS");
+            
+            
+        // Foreign Keys
+        builder.Property(x => x.NavioId)
+            .HasColumnName("NAVIO_ID");
+            
+        builder.Property(x => x.ArmadorId)
+            .HasColumnName("ARMADOR_ID");
+    }
+}
+```
+**Audit Fields Standard:**
+- `DT_CADASTRO` → CreatedAt
+- `TX_USUARIO_CADASTRO` → CreatedBy  
+- `DT_MODIFICACAO` → LastModifiedAt
+- `TX_USUARIO_MODIFICACAO` → LastModifiedBy
+- `FL_ATIVO` → IsDeleted (inverted logic, database stores "active" but entity uses "deleted")
+
+**Enum Configuration:**
+- Enums are converted to strings in database using `.HasConversion<string>()`
+- For `[Flags]` enums, values are stored as comma-separated strings (e.g., "Empilhavel, CargaIMO")
+- Example:
+```csharp
+builder.Property(x => x.TipoOperacao)
+    .HasColumnName("TX_TIPO_OPERACAO")
+    .HasConversion<string>()
+    .HasMaxLength(50)
+    .IsRequired();
+
+builder.Property(x => x.CaracteristicasCarga)
+    .HasColumnName("TX_CARACTERISTICAS_CARGA")
+    .HasConversion<string>()
+    .HasMaxLength(100)
+    .IsRequired();
+```
+
+## 🌱 Database Seeding
+
+### Initial Data Population
+- Use static `Seed` class in `Infrastructure/Data/DbContexts/Seed.cs`
+- Call seed methods from `Program.cs` or startup configuration
+- Always check if data exists before seeding (`if (context.Entity.Any()) return;`)
+- Seed data in the following order:
+  1. Permissions
+  2. Roles
+  3. Role Claims
+  4. Default Users
+
+### Example Seed Method
+```csharp
+public static async Task SeedPermissionsAsync(ApplicationDbContext context)
+{
+    if (context.Permissions.Any())
+        return;
+    
+    var permissions = new List<Permission>
+    {
+        new() { Name = Permissions.AttachmentsRead, DisplayName = "Anexos (L)" }
+    };
+    
+    await context.Permissions.AddRangeAsync(permissions);
+    await context.SaveChangesAsync();
+}
+```
+
+### DO NOT
+- ❌ Create endpoints for initial data population
+- ❌ Use migrations for seeding business data
+- ❌ Seed data without checking existence first
+
+## 🧭 Best Practices
+1. Always validate input using FluentValidation or manual checks in handlers
+2. Use DomainNotifications for errors and DomainSuccesNotifications for success messages
+3. Implement centralized logging via `ILogService` for all persistence operations
+4. Map objects via AutoMapper using `IMapFrom<T>` interface
+5. Follow Repository + UnitOfWork pattern for data access
+6. Always use async/await for I/O operations
+7. Secure endpoints properly with `[Authorize]` and policies
+8. Use dependency injection everywhere via constructor primary syntax
+9. Write clean, maintainable code following SOLID principles
+10. Follow naming conventions consistently (Portuguese for business, English for technical)
+11. **Use `IsDeleted` for soft delete, never `IsActive`**
+12. **Handlers return `ResponseBase<T>`, controllers pass through responses**
+13. **Filter soft-deleted records with `.Where(x => !x.IsDeleted)`**
+14. **Use `[Flags]` enums for multiple selections, regular enums for single selection**
+15. **Always include `[Display(Name = "...")]` attributes on enum values**
+16. **Always use constructor primary syntax for handlers and services**
+17. **Always use instance Mediator for notifications: `await _mediator.Publish(new DomainNotification(...))`**
+18. **Commands receive RequestDTO as parameter, not individual properties**
+19. **For file uploads, validate extension and size before saving**
+20. **Return files as Base64 data URI for direct rendering in frontend**
+21. **Use transactions for operations that modify multiple entities**
+22. **Log all persistence operations (create, update, delete) with structured details**
+23. **For list endpoints with filters, accept `sortBy` as JSON string and deserialize with `JsonUtils.DeserializeSortBy()`**
+24. **Use dynamic SQL in repositories for complex filtering and sorting with Dapper**
+25. **Always validate allowed sort fields in repository to prevent SQL injection**
+26. **Return `PaginatedList<T>` for list queries with pagination**
+27. **Always remove any register, use soft delete.**

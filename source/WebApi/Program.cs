@@ -1,13 +1,10 @@
-﻿using Modalgr.Logging;
-using FSP.Api.Infrastructure.Data.DbContexts;
+﻿using FSP.Api.Infrastructure.Data.DbContexts;
 using FSP.Api.WebApi.Configurations;
 using FSP.Api.Domain.Constants;
 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
-
-builder.CreateLogConfiguration();
 
 builder.Services.AddApplicationServices();
 builder.Services.AddInfrastructureServices(builder.Configuration);

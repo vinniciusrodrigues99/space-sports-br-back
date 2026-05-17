@@ -45,7 +45,8 @@ namespace FSP.Api.Application.Features.SpaceSports.Posts.Queries.GetPosts
                     AvatarUrl = p.Autor?.TxFoto
                 },
                 PublishedAt = p.PublicadoEm,
-                ReadingMinutes = p.MinutosLeitura
+                ReadingMinutes = p.MinutosLeitura,
+                ViewCount = p.Visualizacoes
             }).ToList();
 
             return ResponseBase<List<PostDTO>>.Success(dtos);

@@ -546,6 +546,9 @@ $RECYCLE.BIN/
 # Environment secrets
 .env
 
+# Configurações locais com segredos (use appsettings.Development.json.example como referência)
+appsettings.Development.json
+
 # Excecao: entidade de dominio Log
 !source/Domain/Entities/Log/
 !source/Domain/Entities/Log/**

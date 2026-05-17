@@ -16,5 +16,6 @@ namespace FSP.Api.Domain.Entities.Post
         public ApplicationUser? Autor { get; set; }
         public DateTimeOffset PublicadoEm { get; set; }
         public int MinutosLeitura { get; set; }
+        public int Visualizacoes { get; set; }
     }
 }

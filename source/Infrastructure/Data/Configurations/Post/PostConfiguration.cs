@@ -55,6 +55,11 @@ namespace FSP.Api.Infrastructure.Data.Configurations.Post
                 .HasColumnName("QTD_MINUTOS_LEITURA")
                 .IsRequired();
 
+            builder.Property(p => p.Visualizacoes)
+                .HasColumnName("QTD_VISUALIZACOES")
+                .IsRequired()
+                .HasDefaultValue(0);
+
             builder.Property(p => p.CriadoPor)
                 .HasColumnName("TX_CRIADO_POR")
                 .HasMaxLength(100);

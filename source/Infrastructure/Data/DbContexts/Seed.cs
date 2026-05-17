@@ -44,16 +44,12 @@ namespace FSP.Api.Infrastructure.Data.DbContexts
         public static async Task SeedRoleClaimsAsync(ApplicationDbContext context, RoleManager<Perfil> roleManager)
         {
             var adminRole = await roleManager.FindByNameAsync(ProfileRoles.Admin);
-            var diretoriaRole = await roleManager.FindByNameAsync(ProfileRoles.Board);
-            var aprovadorRole = await roleManager.FindByNameAsync(ProfileRoles.Approver);
 
-            if (adminRole == null || diretoriaRole == null || aprovadorRole == null)
+            if (adminRole == null)
                 return;
 
             if (await context.RoleClaims.AnyAsync())
                 return;
-
-            var roleClaims = new List<IdentityRoleClaim<Guid>>();
 
             var adminPermissions = new[]
             {
@@ -70,50 +66,12 @@ namespace FSP.Api.Infrastructure.Data.DbContexts
                 Permissions.UsersWrite
             };
 
-            foreach (var permission in adminPermissions)
+            var roleClaims = adminPermissions.Select(p => new IdentityRoleClaim<Guid>
             {
-                roleClaims.Add(new IdentityRoleClaim<Guid>
-                {
-                    RoleId = adminRole.Id,
-                    ClaimType = "Permissao",
-                    ClaimValue = permission
-                });
-            }
-
-            var boardPermissions = new[]
-            {
-                Permissions.TitlesRead,
-                Permissions.TitlesValidation,
-                Permissions.ObservationsRead,
-                Permissions.AttachmentsRead
-            };
-
-            foreach (var permission in boardPermissions)
-            {
-                roleClaims.Add(new IdentityRoleClaim<Guid>
-                {
-                    RoleId = diretoriaRole.Id,
-                    ClaimType = "Permissao",
-                    ClaimValue = permission
-                });
-            }
-
-            var approverPermissions = new[]
-            {
-                Permissions.TitlesRead,
-                Permissions.ObservationsRead,
-                Permissions.AttachmentsRead
-            };
-
-            foreach (var permission in approverPermissions)
-            {
-                roleClaims.Add(new IdentityRoleClaim<Guid>
-                {
-                    RoleId = aprovadorRole.Id,
-                    ClaimType = "Permissao",
-                    ClaimValue = permission
-                });
-            }
+                RoleId = adminRole.Id,
+                ClaimType = "Permissao",
+                ClaimValue = p
+            }).ToList();
 
             await context.RoleClaims.AddRangeAsync(roleClaims);
             await context.SaveChangesAsync();
@@ -148,9 +106,7 @@ namespace FSP.Api.Infrastructure.Data.DbContexts
             {
                 ProfileRoles.Admin,
                 ProfileRoles.Author,
-                ProfileRoles.Reader,
-                ProfileRoles.Board,
-                ProfileRoles.Approver
+                ProfileRoles.Reader
             };
 
             foreach (var roleName in roles)

@@ -33,6 +33,7 @@ namespace FSP.Api.Application.Features.SpaceSports.Users.Queries.GetAllUsers
                     AvatarUrl = usuario.TxFoto,
                     Role = RoleMapper.ToFrontendRole(roleDb),
                     CanPublish = usuario.CanPublish,
+                    TwoFactorEnabled = usuario.TwoFactorEnabled,
                     CreatedAt = usuario.CriadoEm
                 });
             }

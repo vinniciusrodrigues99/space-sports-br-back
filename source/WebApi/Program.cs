@@ -54,9 +54,11 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("UsersWrite", policy =>
         policy.RequireClaim("Permission", Permissions.UsersWrite));
 
-    // Publish
+    // Publish — admins always can, authors need explicit permission
     options.AddPolicy("CanPublish", policy =>
-        policy.RequireClaim("canPublish", "true"));
+        policy.RequireAssertion(ctx =>
+            ctx.User.IsInRole("Administrador") ||
+            ctx.User.HasClaim("canPublish", "true")));
 });
 
 var app = builder.Build();

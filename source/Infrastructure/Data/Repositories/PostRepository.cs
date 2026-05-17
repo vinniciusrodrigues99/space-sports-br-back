@@ -51,5 +51,14 @@ namespace FSP.Api.Infrastructure.Data.Repositories
         {
             await _dbContext.Posts.AddAsync(post, cancellationToken);
         }
+
+        public async Task<bool> IncrementViewAsync(string slug, CancellationToken cancellationToken = default)
+        {
+            var rows = await _dbContext.Posts
+                .Where(p => p.Slug == slug && !p.Excluido)
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.Visualizacoes, p => p.Visualizacoes + 1), cancellationToken);
+
+            return rows > 0;
+        }
     }
 }

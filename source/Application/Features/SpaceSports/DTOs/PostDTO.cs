@@ -13,6 +13,7 @@ namespace FSP.Api.Application.Features.SpaceSports.DTOs
         public PostAuthorDTO Author { get; set; } = new();
         public DateTimeOffset PublishedAt { get; set; }
         public int ReadingMinutes { get; set; }
+        public int ViewCount { get; set; }
     }
 
     public class PostAuthorDTO

@@ -50,7 +50,7 @@ namespace FSP.Api.WebApi.Controllers
         /// <summary>
         /// Atribui uma role a um usuário
         /// </summary>
-        [Microsoft.AspNetCore.Authorization.Authorize(Roles = $"{ProfileRoles.Approver},{ProfileRoles.Admin}, {ProfileRoles.Board}")]
+        [Microsoft.AspNetCore.Authorization.Authorize(Roles = ProfileRoles.Admin)]
         [ProducesResponseType(statusCode: 200, type: typeof(ResponseBase<AssignRoleToUserCommandResponse>))]
         [ProducesResponseType(statusCode: 400, type: typeof(ResponseBase<object>))]
         [HttpPost("usuario/{idUsuario}/atribuir-role")]

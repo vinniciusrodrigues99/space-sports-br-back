@@ -5,6 +5,7 @@ using FSP.Api.Application.Features.SpaceSports.Posts.Queries.GetPostBySlug;
 using FSP.Api.Application.Features.SpaceSports.Posts.Commands.CreatePost;
 using FSP.Api.Application.Features.SpaceSports.Posts.Commands.UpdatePost;
 using FSP.Api.Application.Features.SpaceSports.Posts.Commands.DeletePost;
+using FSP.Api.Application.Features.SpaceSports.Posts.Commands.IncrementPostView;
 using FSP.Api.Application.Features.SpaceSports.DTOs;
 using FSP.Api.Domain.Common;
 using FSP.Api.Domain.Notifications;
@@ -56,6 +57,12 @@ namespace FSP.Api.WebApi.Controllers
             var isAdmin = User.IsInRole("Administrador");
             return Response(await _mediator.Send(new UpdatePostCommand(id, request, userId, isAdmin)));
         }
+
+        [ProducesResponseType(statusCode: 200)]
+        [ProducesResponseType(statusCode: 404, type: typeof(ResponseBase<>))]
+        [HttpPost("{slug}/view")]
+        public async Task<IActionResult> IncrementView([FromRoute] string slug)
+            => Response(await _mediator.Send(new IncrementPostViewCommand(slug)));
 
         [Authorize]
         [ProducesResponseType(statusCode: 204)]

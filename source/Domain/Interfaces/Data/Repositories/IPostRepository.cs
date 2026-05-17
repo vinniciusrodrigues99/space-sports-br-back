@@ -9,5 +9,6 @@ namespace FSP.Api.Domain.Interfaces.Data.Repositories
         Task<Post?> GetBySlugComAutorAsync(string slug, CancellationToken cancellationToken = default);
         Task<Post?> GetByIdComAutorAsync(Guid id, CancellationToken cancellationToken = default);
         Task AddAsync(Post post, CancellationToken cancellationToken = default);
+        Task<bool> IncrementViewAsync(string slug, CancellationToken cancellationToken = default);
     }
 }

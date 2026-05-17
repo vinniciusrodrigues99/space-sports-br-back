@@ -66,7 +66,7 @@ namespace FSP.Api.Infrastructure.Services
                 message.To.Add(MailboxAddress.Parse(email));
                 message.Subject = "Token para Redefinição de Senha";
                 
-                var resetUrl = $"{_configuration["AppSettings:ResetPasswordUrl"]}?token={token}&email={Uri.EscapeDataString(email)}";
+                var resetUrl = $"{_configuration["AppSettings:ResetPasswordUrl"]}?token={Uri.EscapeDataString(token)}&email={Uri.EscapeDataString(email)}";
                 var builder = new BodyBuilder
                 {
                     HtmlBody = $"<p>Para redefinir sua senha, <a href='{resetUrl}'>clique aqui</a>."

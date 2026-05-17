@@ -8,6 +8,7 @@ namespace FSP.Api.Application.Features.SpaceSports.DTOs
         public string? AvatarUrl { get; set; }
         public string Role { get; set; } = "reader";
         public bool CanPublish { get; set; }
+        public bool TwoFactorEnabled { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
     }
 }

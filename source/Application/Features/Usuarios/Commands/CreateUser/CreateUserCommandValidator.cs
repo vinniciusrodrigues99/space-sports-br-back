@@ -21,12 +21,12 @@ namespace FSP.Api.Application.Features.Usuarios.Commands.CreateUser
 
             RuleFor(x => x.CreateUserRequest.Perfil)
                 .NotEmpty().WithMessage("Perfil é obrigatório.")
-                .Must(BeAValidRole).WithMessage("Perfil inválido. Valores válidos: Administrador, Diretoria, Aprovador.");
+                .Must(BeAValidRole).WithMessage("Perfil inválido. Valores válidos: Administrador, Autor, Leitor.");
         }
 
         private bool BeAValidRole(string perfil)
         {
-            var validRoles = new[] { ProfileRoles.Admin, ProfileRoles.Board, ProfileRoles.Approver };
+            var validRoles = new[] { ProfileRoles.Admin, ProfileRoles.Author, ProfileRoles.Reader };
             return validRoles.Contains(perfil);
         }
     }

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using FSP.Api.Application.Features.SpaceSports.Auth.Commands.Login;
 using FSP.Api.Application.Features.SpaceSports.Auth.Commands.Register;
+using FSP.Api.Application.Features.SpaceSports.Auth.Commands.UpdateProfile;
 using FSP.Api.Application.Features.SpaceSports.Auth.Queries.GetCurrentUser;
 using FSP.Api.Application.Features.SpaceSports.DTOs;
 using FSP.Api.Domain.Common;
@@ -41,6 +42,19 @@ namespace FSP.Api.WebApi.Controllers
                 return Unauthorized();
 
             return Response(await _mediator.Send(new GetCurrentUserQuery(userId)));
+        }
+
+        [Authorize]
+        [ProducesResponseType(statusCode: 200, type: typeof(ResponseBase<UserDTO>))]
+        [ProducesResponseType(statusCode: 400, type: typeof(ResponseBase<>))]
+        [HttpPatch("profile")]
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
+        {
+            var userIdStr = User.FindFirstValue("sub") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(userIdStr, out var userId))
+                return Unauthorized();
+
+            return Response(await _mediator.Send(new UpdateProfileCommand(userId, request.Name, request.AvatarUrl)));
         }
 
         [Authorize]

@@ -7,6 +7,7 @@ namespace FSP.Api.WebApi.Controllers
     public class HealthController : ControllerBase
     {
         [HttpGet]
+        [HttpHead]
         public IActionResult Get() => Ok(new { status = "healthy", timestamp = DateTimeOffset.UtcNow });
     }
 }

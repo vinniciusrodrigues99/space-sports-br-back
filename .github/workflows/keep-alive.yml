@@ -3,7 +3,7 @@ name: Keep Render Service Alive
 on:
   schedule:
     # Roda a cada 13 minutos
-    - cron: '*/13 * * * *'
+    - cron: '*/6 * * * *'
   workflow_dispatch:
 
 jobs:

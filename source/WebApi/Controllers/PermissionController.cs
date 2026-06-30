@@ -39,10 +39,5 @@ namespace FSP.Api.WebApi.Controllers
         [HttpGet("categorias")]
         public async Task<IActionResult> ObterCategoriasPermissoes()
             => Response(await _mediatorHandler.Send(new GetPermissionsQuery()));
-
-        /// <summary>
-        /// Popula o banco de dados com as permissões padrão do sistema
-        /// </summary>
-        // [Authorize(Roles = $"{ProfileRoles.Admin}")]
     }
 }

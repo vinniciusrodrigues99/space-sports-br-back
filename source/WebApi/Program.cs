@@ -11,6 +11,20 @@ builder.Services.AddInfrastructureServices(builder.Configuration);
 builder.Services.AddWebServices(builder.Configuration);
 builder.Services.AddMemoryCache();
 
+builder.Services.AddHttpClient("football-live", client =>
+{
+    client.BaseAddress = new Uri("https://free-api-live-football-data.p.rapidapi.com/");
+    client.DefaultRequestHeaders.Add("X-RapidAPI-Key",
+        builder.Configuration["RapidApi:ApiKey"] ?? "");
+    client.DefaultRequestHeaders.Add("X-RapidAPI-Host",
+        "free-api-live-football-data.p.rapidapi.com");
+});
+
+builder.Services.AddHttpClient("espn", client =>
+{
+    client.BaseAddress = new Uri("https://site.api.espn.com/");
+});
+
 // Configure authorization policies based on claims
 builder.Services.AddAuthorization(options =>
 {

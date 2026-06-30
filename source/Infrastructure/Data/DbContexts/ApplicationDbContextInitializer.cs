@@ -39,6 +39,7 @@ public class ApplicationDbContextInitializer
         _userManager = userManager;
         _roleManager = roleManager;
     }
+    
 
     public async Task InitialiseAsync()
     {

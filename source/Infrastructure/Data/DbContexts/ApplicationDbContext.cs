@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using FSP.Api.Domain.Entities.Log;
+using FSP.Api.Domain.Entities.Palpite;
 using Microsoft.Extensions.Configuration;
 
 namespace FSP.Api.Infrastructure.Data.DbContexts;
@@ -24,6 +25,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Permissao> Permissions { get; set; }
     public DbSet<Logs> Logs { get; set; }
     public DbSet<Post> Posts { get; set; }
+    public DbSet<Palpite> Palpites { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

@@ -107,10 +107,15 @@ namespace FSP.Api.WebApi.Controllers
 
         private async Task<List<JsonNode>> GetFilteredMatchesAsync(string dateStr)
         {
-            // Busca o dia pedido + dia seguinte (UTC) para capturar jogos das 22h BRT
-            var nextDateStr = DateOnly.Parse(dateStr).AddDays(1).ToString("yyyy-MM-dd");
+            // ESPN usa EDT (UTC-4) para bucketing. Jogo às 03:00Z do dia D é
+            // 23:00 EDT do dia D-1 → bucket ESPN = D-1. Buscamos D-1, D e D+1
+            // para garantir cobertura total, depois filtramos pela data BRT pedida.
+            var date = DateOnly.Parse(dateStr);
+            var prevDateStr = date.AddDays(-1).ToString("yyyy-MM-dd");
+            var nextDateStr = date.AddDays(1).ToString("yyyy-MM-dd");
             var client = httpClientFactory.CreateClient("espn");
             var results = await Task.WhenAll(
+                FetchRawAsync(client, prevDateStr),
                 FetchRawAsync(client, dateStr),
                 FetchRawAsync(client, nextDateStr)
             );

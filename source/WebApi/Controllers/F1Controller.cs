@@ -19,23 +19,21 @@ namespace FSP.Api.WebApi.Controllers
 
             var client = httpClientFactory.CreateClient();
 
-            // 1. Scoreboard → last completed race
+            // 1. Scoreboard com calendário completo da temporada → última corrida encerrada
+            var year = DateTime.UtcNow.Year;
             var boardJson = await client.GetStringAsync(
-                "https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard");
+                $"https://site.api.espn.com/apis/site/v2/sports/racing/f1/scoreboard?dates={year}0101-{year}1231&limit=100");
             var board = JsonNode.Parse(boardJson);
 
             JsonNode? raceComp = null;
             string raceName = "", circuit = "";
             string raceDate = "";
 
+            // Itera todos os eventos e mantém o último com state=="post" e competition=="Race"
             foreach (var evt in board?["events"]?.AsArray() ?? [])
             {
                 var state = evt?["status"]?["type"]?["state"]?.GetValue<string>();
                 if (state != "post") continue;
-
-                raceName = evt?["name"]?.GetValue<string>() ?? "";
-                raceDate = evt?["endDate"]?.GetValue<string>() ?? "";
-                circuit = evt?["circuit"]?["fullName"]?.GetValue<string>() ?? "";
 
                 foreach (var comp in evt?["competitions"]?.AsArray() ?? [])
                 {
@@ -44,10 +42,13 @@ namespace FSP.Api.WebApi.Controllers
                     if (typeAbbr == "Race" && compState == "post")
                     {
                         raceComp = comp;
+                        raceName = evt?["name"]?.GetValue<string>() ?? "";
+                        raceDate = evt?["endDate"]?.GetValue<string>() ?? "";
+                        circuit = evt?["circuit"]?["fullName"]?.GetValue<string>() ?? "";
                         break;
                     }
                 }
-                if (raceComp != null) break;
+                // Não quebra o loop externo — continua para sobrescrever com evento mais recente
             }
 
             if (raceComp == null)

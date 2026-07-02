@@ -10,5 +10,7 @@ namespace FSP.Api.Domain.Entities.Palpite
         public int HomeGoals { get; set; }
         public int AwayGoals { get; set; }
         public required string Nickname { get; set; }
+        public Guid? UserId { get; set; }
+        public string? Stage { get; set; }
     }
 }

@@ -2,6 +2,7 @@ using FSP.Api.Infrastructure.Data.DbContexts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using System.Text.Json;
 
 namespace FSP.Api.WebApi.Controllers
@@ -15,7 +16,8 @@ namespace FSP.Api.WebApi.Controllers
             string AwayName,
             int HomeGoals,
             int AwayGoals,
-            string Nickname
+            string Nickname,
+            string? Stage
         );
 
         // ── POST /api/v1/palpites ─────────────────────────────────────────────
@@ -27,6 +29,8 @@ namespace FSP.Api.WebApi.Controllers
             if (string.IsNullOrWhiteSpace(req.Nickname)) return BadRequest();
 
             var nick = req.Nickname.Trim();
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            Guid? userId = Guid.TryParse(userIdStr, out var uid) ? uid : null;
 
             // Busca palpite existente do mesmo nickname no mesmo jogo
             var existing = await db.Palpites
@@ -42,6 +46,7 @@ namespace FSP.Api.WebApi.Controllers
                 existing.HomeName = req.HomeName ?? "";
                 existing.AwayName = req.AwayName ?? "";
                 existing.DataModificacao = DateTimeOffset.UtcNow;
+                if (userId.HasValue) existing.UserId = userId;
             }
             else
             {
@@ -54,6 +59,8 @@ namespace FSP.Api.WebApi.Controllers
                     HomeGoals = Math.Max(0, req.HomeGoals),
                     AwayGoals = Math.Max(0, req.AwayGoals),
                     Nickname = nick,
+                    UserId = userId,
+                    Stage = req.Stage,
                     CriadoEm = DateTimeOffset.UtcNow,
                     DataModificacao = DateTimeOffset.UtcNow,
                 });
@@ -86,7 +93,11 @@ namespace FSP.Api.WebApi.Controllers
                     homeGoals = p.HomeGoals,
                     awayGoals = p.AwayGoals,
                     nickname = p.Nickname,
+                    stage = p.Stage,
                     submittedAt = p.CriadoEm,
+                    userPhotoUrl = p.UserId != null
+                        ? db.Users.Where(u => u.Id == p.UserId).Select(u => u.TxFoto).FirstOrDefault()
+                        : null,
                 })
                 .ToListAsync();
 

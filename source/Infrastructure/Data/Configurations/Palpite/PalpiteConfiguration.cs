@@ -59,6 +59,13 @@ namespace FSP.Api.Infrastructure.Data.Configurations.Palpite
                 .IsRequired()
                 .HasDefaultValue(false);
 
+            builder.Property(p => p.UserId)
+                .HasColumnName("ID_USUARIO");
+
+            builder.Property(p => p.Stage)
+                .HasColumnName("TX_FASE")
+                .HasMaxLength(60);
+
             // Um palpite por nickname por jogo
             builder.HasIndex(p => new { p.EventId, p.Nickname })
                 .IsUnique()
